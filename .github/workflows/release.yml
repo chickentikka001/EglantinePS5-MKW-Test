@@ -72,7 +72,8 @@ jobs:
 
       # The emulator source, Eglantine/, is part of this repository.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
+      - name: Apply MKW GPU wake-up test patch
+        run: git apply egl_ps5_003_gpu_split_lost_wake_port.patch
       - name: Locate the caches
         run: |
           # Beside the checkout, on the runner's disk; the paths stay the same between runs.
