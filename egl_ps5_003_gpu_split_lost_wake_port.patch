@@ -1,0 +1,53 @@
+diff --git a/Eglantine/src/video_core/gpu_split.cpp b/Eglantine/src/video_core/gpu_split.cpp
+--- a/Eglantine/src/video_core/gpu_split.cpp
++++ b/Eglantine/src/video_core/gpu_split.cpp
+@@ -128,7 +128,7 @@ void GpuSplit::Stop() {
+     }
+     back_thread.request_stop();
+     wake.fetch_add(1, std::memory_order_seq_cst);
+-    wake.notify_one();
++    wake.notify_all();
+     back_thread.join();
+     active = false;
+@@ -178,6 +178,10 @@ void GpuSplit::WaitForSpace(size_t words) {
+         if (spins < 4096) {
+             Pause();
+         } else {
+             std::this_thread::yield();
++            if ((spins & 1023) == 0 && back_waiting.load(std::memory_order_seq_cst)) {
++                wake.fetch_add(1, std::memory_order_seq_cst);
++                wake.notify_all();
++            }
+         }
+     }
+ }
+@@ -195,7 +199,7 @@ void GpuSplit::Publish() {
+     published.store(write_position, std::memory_order_seq_cst);
+     if (back_waiting.load(std::memory_order_seq_cst)) {
+         wake.fetch_add(1, std::memory_order_seq_cst);
+-        wake.notify_one();
++        wake.notify_all();
+     }
+ }
+@@ -230,6 +234,10 @@ void GpuSplit::Drain(DrainSite site) {
+             if (spins < 16384) {
+                 Pause();
+             } else {
+                 std::this_thread::yield();
++                if ((spins & 1023) == 0 && back_waiting.load(std::memory_order_seq_cst)) {
++                    wake.fetch_add(1, std::memory_order_seq_cst);
++                    wake.notify_all();
++                }
+             }
+             continue;
+         }
+diff --git a/Eglantine/src/video_core/gpu_split.h b/Eglantine/src/video_core/gpu_split.h
+--- a/Eglantine/src/video_core/gpu_split.h
++++ b/Eglantine/src/video_core/gpu_split.h
+@@ -72,7 +72,7 @@ public:
+     void RequestIdleHook() {
+         hook_requested.store(true, std::memory_order_seq_cst);
+         wake.fetch_add(1, std::memory_order_seq_cst);
+-        wake.notify_one();
++        wake.notify_all();
+     }
